@@ -152,7 +152,13 @@ Payload is appended to the opcode, then the whole thing is zero-padded to 20 byt
 
 - **unlock** `0401` + `masterToken` (hex string, appended verbatim)
   - admin: `lock.masterToken`; non-admin: `tokens[0].tokenRaw`
+  - **Verified on H03**: reply `0401 00 …` = opened. Only works when the door is currently
+    locked; unlocking an already-unlocked door replies `0401 ff …` (rejected).
 - **lock** `0402` + `masterToken` (same rule)
+  - **Verified on H03: not supported** — the lock sends no reply and does not act. This
+    "Smart Handle" has no motorised remote lock; locking is done by **auto-lock** (setting the
+    `setAutoLock` flag re-locks an open door) or by closing the door. Other hardware models may
+    honour `0402`.
 - **setNormalLock** `0901` + (`01` on / `00` off) — passage / free-handle mode
 - **setUnlatch** `0906`, **setAutoLock** `0903`, **setLockSound** `0902`,
   **setBreakInAlarm** `0904`, **setLockDirection** `0905`, **setButtonEnabled** `0907`

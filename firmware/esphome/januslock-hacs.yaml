@@ -46,10 +46,11 @@ janus_lock:
   calibrated:
     name: "Gekalibreerd"
 
-lock:
+button:
   - platform: janus_lock
     janus_lock_id: janus_hub
-    name: "Kantoor slot"
+    action: unlock
+    name: "Ontgrendelen"
 
 switch:
   - platform: janus_lock

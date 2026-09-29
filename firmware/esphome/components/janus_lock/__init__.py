@@ -11,7 +11,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@alexmbino"]
 DEPENDENCIES = ["ble_client"]
-AUTO_LOAD = ["sensor", "binary_sensor", "switch", "lock"]
+AUTO_LOAD = ["sensor", "binary_sensor", "switch", "lock", "button"]
 MULTI_CONF = True
 
 janus_lock_ns = cg.esphome_ns.namespace("janus_lock")

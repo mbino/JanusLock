@@ -1,3 +1,6 @@
+## v0.4.0
+- Replaced the lock entity with an "Ontgrendelen" (unlock) button, matching the app and how the H03 "Smart Handle" actually works: there is no remote lock command — unlocking opens the handle and auto-lock (or closing the door) re-locks it. Unlocking only works when the door is currently locked.
+
 ## v0.3.0
 - ESPHome integration now runs on real hardware in Home Assistant: unlock, passage mode, battery and status all working, built from the public repo via the ESPHome add-on.
 - Connect-on-demand: the ESP32 only connects to the lock for a command or a periodic status check, then disconnects — so it does not drain the lock's batteries.

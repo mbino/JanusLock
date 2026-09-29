@@ -42,6 +42,30 @@ add_pin:
         select:
           multiple: true
           options: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+    time_from:
+      name: Valid from (time)
+      description: Optional; start of the daily time window (HH:MM). Requires 'Valid until (time)'.
+      example: "09:00"
+      selector:
+        time:
+    time_to:
+      name: Valid until (time)
+      description: Optional; end of the daily time window (HH:MM). Requires 'Valid from (time)'.
+      example: "17:00"
+      selector:
+        time:
+    date_from:
+      name: Valid from (date)
+      description: Optional; first day the code is valid (YYYY-MM-DD). Requires 'Valid until (date)'.
+      example: "2026-10-01"
+      selector:
+        date:
+    date_to:
+      name: Valid until (date)
+      description: Optional; last day the code is valid (YYYY-MM-DD). Requires 'Valid from (date)'.
+      example: "2026-10-08"
+      selector:
+        date:
     esphome_node:
       name: ESPHome node name
       description: The ESPHome device name that drives the lock over BLE.

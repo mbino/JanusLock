@@ -1,3 +1,6 @@
+## v0.7.0
+- PIN codes can now be time-limited, matching the last two options in the vendor app. `januslock.add_pin` gained a daily time window (`time_from`/`time_to`, e.g. 09:00–17:00) and a valid-from/until date range (`date_from`/`date_to`). Combine them freely with the existing one-time and weekday options; leave them empty for a code with no time restriction.
+
 ## v0.6.0
 - PIN-code management, end to end. The ESPHome firmware gained BLE services to provision and remove passcodes (updatePasscode1/2, removePasscode), and the Home Assistant integration gained `januslock.add_pin` (create a code — permanent or one-time, optional weekdays — on the cloud and push it to the lock) and `januslock.remove_pin`. The lock's current passcodes are listed as an attribute on the Day code sensor.
 

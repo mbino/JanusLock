@@ -22,6 +22,34 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor"]
 
 
+def _norm_time(value) -> str:
+    """Normalise a time to the app's 'HH:MM' format ('' when unset)."""
+    if not value:
+        return ""
+    text = str(value).strip()
+    parts = text.split(":")
+    if len(parts) < 2:
+        raise ValueError(f"invalid time '{value}', expected HH:MM")
+    try:
+        return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
+    except ValueError as err:
+        raise ValueError(f"invalid time '{value}', expected HH:MM") from err
+
+
+def _norm_date(value) -> str:
+    """Normalise a date to the app's 'YYYY-MM-DD' format ('' when unset)."""
+    if not value:
+        return ""
+    if isinstance(value, datetime.date):
+        return value.strftime("%Y-%m-%d")
+    text = str(value).strip()
+    try:
+        datetime.datetime.strptime(text, "%Y-%m-%d")
+    except ValueError as err:
+        raise ValueError(f"invalid date '{value}', expected YYYY-MM-DD") from err
+    return text
+
+
 class JanusCoordinator(DataUpdateCoordinator):
     """Fetches the profile and today's 1-day code for each lock."""
 
@@ -135,15 +163,26 @@ def _register_services(hass: HomeAssistant) -> None:
         passcode = call.data["passcode"]
         one_time = call.data.get("one_time", False)
         days = call.data.get("weekdays") or _DAYS
+        try:
+            time_from = _norm_time(call.data.get("time_from"))
+            time_to = _norm_time(call.data.get("time_to"))
+            date_from = _norm_date(call.data.get("date_from"))
+            date_to = _norm_date(call.data.get("date_to"))
+        except ValueError as err:
+            return {"error": str(err)}
+        if bool(time_from) != bool(time_to):
+            return {"error": "time_from and time_to must be given together"}
+        if bool(date_from) != bool(date_to):
+            return {"error": "date_from and date_to must be given together"}
         payload = {
             "lockId": lock_id,
             "passcode": passcode,
             "recipientUsername": "",
             "remainingUnlockCount": 1 if one_time else 255,
-            "timeValidFrom": "",
-            "timeValidTo": "",
-            "dateValidFrom": "",
-            "dateValidTo": "",
+            "timeValidFrom": time_from,
+            "timeValidTo": time_to,
+            "dateValidFrom": date_from,
+            "dateValidTo": date_to,
             "weekday": {d: (d in days) for d in _DAYS},
         }
         token = await coord.api.add_token(payload)
@@ -163,7 +202,12 @@ def _register_services(hass: HomeAssistant) -> None:
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("confirm-synced failed: %s", err)
         await coord.async_request_refresh()
-        return {"token_id": token_id, "passcode": passcode}
+        return {
+            "token_id": token_id,
+            "passcode": passcode,
+            "time": f"{time_from}-{time_to}" if time_from else None,
+            "date": f"{date_from} .. {date_to}" if date_from else None,
+        }
 
     async def _remove_pin(call: ServiceCall):
         coord = _first_coordinator(hass)
@@ -191,6 +235,10 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Required("passcode"): cv.string,
                 vol.Optional("one_time", default=False): cv.boolean,
                 vol.Optional("weekdays"): vol.All(cv.ensure_list, [vol.In(_DAYS)]),
+                vol.Optional("time_from"): cv.string,
+                vol.Optional("time_to"): cv.string,
+                vol.Optional("date_from"): cv.string,
+                vol.Optional("date_to"): cv.string,
                 vol.Optional("lock_id"): cv.string,
                 vol.Optional("esphome_node"): cv.string,
             }

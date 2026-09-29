@@ -51,21 +51,21 @@ janus_lock:
   master_token: !secret janus_master_token
   update_interval: 12h   # periodic status wake; battery-friendly (connect-on-demand otherwise)
   battery_level:
-    name: "Slot batterij"
+    name: "Lock battery"
   calibrated:
-    name: "Gekalibreerd"
+    name: "Calibrated"
 
 button:
   - platform: janus_lock
     janus_lock_id: janus_hub
     action: unlock
-    name: "Ontgrendelen"
+    name: "Unlock"
 
 switch:
   - platform: janus_lock
     janus_lock_id: janus_hub
     setting: passage
-    name: "Deurkruk-modus"
+    name: "Passage mode"
   - platform: janus_lock
     janus_lock_id: janus_hub
     setting: auto_lock
@@ -73,15 +73,15 @@ switch:
   - platform: janus_lock
     janus_lock_id: janus_hub
     setting: lock_sound
-    name: "Slotgeluid"
+    name: "Lock sound"
   - platform: janus_lock
     janus_lock_id: janus_hub
     setting: break_in_alarm
-    name: "Inbraakalarm"
+    name: "Break-in alarm"
   - platform: janus_lock
     janus_lock_id: janus_hub
     setting: button_enabled
-    name: "Knop-vergrendeling"
+    name: "Button lock"
   - platform: janus_lock
     janus_lock_id: janus_hub
     setting: unlatch

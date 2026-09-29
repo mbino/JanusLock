@@ -48,11 +48,16 @@ Two parts work together:
   (unlock, passage, settings, battery/status). See below.
 - **`custom_components/januslock/`** — a Home Assistant integration for the Janus **cloud**:
   sign in with your Janus account to get a per-lock **"Day code"** sensor (the offline 1-day
-  passcode that works today) and a `januslock.get_day_code` service for any date.
+  passcode that works today) and a `januslock.get_day_code` service for any date. It also
+  provisions custom PIN codes: `januslock.add_pin` creates a code on the cloud and pushes it to
+  the lock over BLE (via the ESPHome device), and `januslock.remove_pin` removes one. A PIN can be
+  **permanent** or **one-time**, and optionally limited to certain **weekdays**, a daily **time
+  window** (`time_from`/`time_to`), and/or a **date range** (`date_from`/`date_to`) — matching all
+  the options in the vendor app.
 
 Install the integration via HACS → *Custom repositories* → add `https://github.com/mbino/JanusLock`
 as an **Integration**, install "Janus Lock", restart, then add it from *Settings → Devices &
-Services* and sign in. (Provisioning custom PIN codes to the lock is planned next.)
+Services* and sign in.
 
 ## Repository layout
 

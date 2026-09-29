@@ -10,7 +10,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -212,19 +212,43 @@ def _register_services(hass: HomeAssistant) -> None:
     async def _remove_pin(call: ServiceCall):
         coord = _first_coordinator(hass)
         if coord is None:
-            return
+            return {"error": "not configured"}
         lock_id = call.data.get("lock_id") or next(iter(coord.data.keys()), None)
         token_id = call.data["token_id"]
         node = call.data.get("esphome_node", "januslock")
-        await hass.services.async_call(
-            "esphome", f"{node}_remove_passcode", {"token_id": token_id}, blocking=True
-        )
-        await asyncio.sleep(8)
+        # 1) remove from the lock over BLE (the lock ACKs even if the token is absent)
+        ble_ok = True
         try:
-            await coord.api.remove_token(lock_id, token_id)
+            await hass.services.async_call(
+                "esphome", f"{node}_remove_passcode", {"token_id": token_id}, blocking=True
+            )
         except Exception as err:  # noqa: BLE001
-            _LOGGER.warning("token/remove failed: %s", err)
+            ble_ok = False
+            _LOGGER.warning("BLE remove_passcode failed: %s", err)
+        await asyncio.sleep(8)
+        # 2) remove from the Janus cloud — retry, and surface a real failure instead of
+        #    swallowing it (otherwise the lock and cloud drift out of sync).
+        cloud_ok = False
+        last_err: Exception | None = None
+        for attempt in range(3):
+            try:
+                await coord.api.remove_token(lock_id, token_id)
+                cloud_ok = True
+                break
+            except JanusApiError as err:
+                if "token_not_found" in str(err):
+                    cloud_ok = True  # already gone from the cloud
+                    break
+                last_err = err
+                if attempt < 2:
+                    await asyncio.sleep(2)
         await coord.async_request_refresh()
+        if not cloud_ok:
+            raise HomeAssistantError(
+                f"Removed passcode from the lock, but the Janus cloud still holds token "
+                f"{token_id} (removal failed): {last_err}"
+            )
+        return {"token_id": token_id, "ble_ok": ble_ok, "cloud_ok": cloud_ok}
 
     hass.services.async_register(
         DOMAIN,
@@ -257,4 +281,5 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Optional("esphome_node"): cv.string,
             }
         ),
+        supports_response=SupportsResponse.OPTIONAL,
     )

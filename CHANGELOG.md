@@ -1,3 +1,7 @@
+## v0.7.1
+- Removing a PIN is now reliable: if the code is taken off the lock but the Janus cloud removal fails, the action retries and then reports an error instead of silently leaving the code in the cloud (which previously let the lock and cloud drift out of sync). It also returns whether the lock and cloud parts each succeeded.
+- The "Day code" sensor now lists the lock's access more clearly: a **pins** list (with each code's type — permanent / one-time — and any time, date or weekday limits) and a separate **fingerprints** list, instead of one mixed "passcodes" attribute.
+
 ## v0.7.0
 - PIN codes can now be time-limited, matching the last two options in the vendor app. `januslock.add_pin` gained a daily time window (`time_from`/`time_to`, e.g. 09:00–17:00) and a valid-from/until date range (`date_from`/`date_to`). Combine them freely with the existing one-time and weekday options; leave them empty for a code with no time restriction.
 

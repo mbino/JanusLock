@@ -10,6 +10,29 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 
+_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+
+def _describe(info: dict) -> dict:
+    """Human-readable validity for a passcode token."""
+    ruc = info.get("remainingUnlockCount")
+    if ruc == 1:
+        out: dict = {"type": "one-time"}
+    elif (ruc or 0) >= 255:
+        out = {"type": "permanent"}
+    else:
+        out = {"type": f"{ruc} uses"}
+    time_from, time_to = info.get("timeValidFrom"), info.get("timeValidTo")
+    if time_from or time_to:
+        out["time"] = f"{time_from}-{time_to}"
+    date_from, date_to = info.get("dateValidFrom"), info.get("dateValidTo")
+    if date_from or date_to:
+        out["date"] = f"{date_from}..{date_to}"
+    weekday = info.get("weekday")
+    if weekday and not all(weekday.get(d) for d in _DAYS):
+        out["weekdays"] = [d for d in _DAYS if weekday.get(d)]
+    return out
+
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
@@ -45,18 +68,21 @@ class JanusDayCodeSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self):
         data = self.coordinator.data.get(self._lock_id, {})
-        passcodes = []
+        pins = []
+        fingerprints = []
         for tok in data.get("tokens", []):
-            if not tok.get("passcode") and not tok.get("passcodeActivated"):
-                # skip master token (tokenId 1) which has no passcode
-                if tok.get("tokenId") == 1:
-                    continue
-            info = tok.get("info", {})
-            passcodes.append(
-                {
-                    "token_id": tok.get("tokenId"),
-                    "passcode": tok.get("passcode"),
-                    "one_time": info.get("remainingUnlockCount") == 1,
-                }
-            )
-        return {"date": data.get("day_date"), "passcodes": passcodes}
+            token_id = tok.get("tokenId")
+            if token_id == 1:
+                continue  # master/admin token has no user code
+            code = (tok.get("passcode") or "").strip()
+            info = tok.get("info", {}) or {}
+            if code.isdigit():
+                pins.append({"token_id": token_id, "code": code, **_describe(info)})
+            else:
+                # a fingerprint token stores its label in the passcode field
+                fingerprints.append({"token_id": token_id, "name": code or None})
+        return {
+            "date": data.get("day_date"),
+            "pins": pins,
+            "fingerprints": fingerprints,
+        }

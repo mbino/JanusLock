@@ -1,0 +1,16 @@
+get_day_code:
+  name: Get 1-day code
+  description: Fetch the offline (TOTP) passcode that works on a given day.
+  fields:
+    lock_id:
+      name: Lock ID
+      description: Optional; defaults to the first lock on the account.
+      example: "64502b42a9677700129a15f3"
+      selector:
+        text:
+    date:
+      name: Date (YYYYMMDD)
+      description: Optional; defaults to today.
+      example: "20260930"
+      selector:
+        text:

@@ -1,3 +1,6 @@
+## v0.5.0
+- Added a Home Assistant custom integration (HACS-installable) for the Janus cloud side. Sign in with your Janus app account to get a per-lock "Day code" sensor — the offline 1-day passcode that works on the current day — plus a `januslock.get_day_code` service to fetch the code for any date. (Provisioning custom PIN codes to the lock is the next step.)
+
 ## v0.4.0
 - Replaced the lock entity with an "Ontgrendelen" (unlock) button, matching the app and how the H03 "Smart Handle" actually works: there is no remote lock command — unlocking opens the handle and auto-lock (or closing the door) re-locks it. Unlocking only works when the door is currently locked.
 

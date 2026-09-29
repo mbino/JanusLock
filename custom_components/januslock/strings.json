@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Janus Lock account",
+        "description": "Sign in with your Janus app account. Used to fetch 1-day codes and passcode tokens.",
+        "data": {
+          "username": "Username / email",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password.",
+      "cannot_connect": "Could not reach api.janus-lock.com."
+    },
+    "abort": {
+      "already_configured": "This account is already configured."
+    }
+  }
+}

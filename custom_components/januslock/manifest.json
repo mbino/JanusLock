@@ -1,0 +1,11 @@
+{
+  "domain": "januslock",
+  "name": "Janus Lock",
+  "codeowners": ["@alexmbino"],
+  "config_flow": true,
+  "documentation": "https://github.com/mbino/JanusLock",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/mbino/JanusLock/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

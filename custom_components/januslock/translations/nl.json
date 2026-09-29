@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Janus Lock-account",
+        "description": "Log in met je Janus-app-account. Wordt gebruikt om 1-dag-codes en pincode-tokens op te halen.",
+        "data": {
+          "username": "Gebruikersnaam / e-mail",
+          "password": "Wachtwoord"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ongeldige gebruikersnaam of wachtwoord.",
+      "cannot_connect": "Kan api.janus-lock.com niet bereiken."
+    },
+    "abort": {
+      "already_configured": "Dit account is al geconfigureerd."
+    }
+  }
+}

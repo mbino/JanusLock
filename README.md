@@ -40,14 +40,28 @@ For a dedicated PoE device at the door, the **ESPHome external component** (phas
 target: always-on, no separate proxy, native Home Assistant integration. The PoC's C++
 protocol code ports directly into it.
 
+## Home Assistant integration (cloud side)
+
+Two parts work together:
+
+- **`firmware/esphome/`** — the ESPHome external component that drives the lock over BLE
+  (unlock, passage, settings, battery/status). See below.
+- **`custom_components/januslock/`** — a Home Assistant integration for the Janus **cloud**:
+  sign in with your Janus account to get a per-lock **"Day code"** sensor (the offline 1-day
+  passcode that works today) and a `januslock.get_day_code` service for any date.
+
+Install the integration via HACS → *Custom repositories* → add `https://github.com/mbino/JanusLock`
+as an **Integration**, install "Janus Lock", restart, then add it from *Settings → Devices &
+Services* and sign in. (Provisioning custom PIN codes to the lock is planned next.)
+
 ## Repository layout
 
 ```
-PROTOCOL.md          Full BLE + cloud-API protocol spec
-firmware/poc/        PlatformIO project — proof-of-concept ESP32 firmware
-  src/main.cpp       Scan/connect/handshake/challenge/unlock + web UI
-  include/secrets.h  Per-lock secrets (gitignored — create your own)
-private/             Your fetched profile/credentials (gitignored)
+PROTOCOL.md              Full BLE + cloud-API protocol spec
+firmware/esphome/        ESPHome external component (BLE) + device YAMLs
+firmware/poc/            PlatformIO proof-of-concept firmware (protocol validation)
+custom_components/januslock/   Home Assistant integration (cloud: 1-day codes)
+private/                 Your fetched profile/credentials (gitignored)
 ```
 
 `apk/` and `decompiled/` (the vendor app) are **gitignored** and never published.

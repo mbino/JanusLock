@@ -44,6 +44,8 @@ class JanusLock : public PollingComponent, public ble_client::BLEClientNode {
   void unlock();
   void lock_it();
   void queue_setting(const std::string &opcode, bool on);  // e.g. "0903" + on
+  void provision_passcode(std::string token_raw, int token_id, std::string passcode);
+  void remove_passcode(int token_id);
   bool is_ready() const { return this->ready_; }
 
  protected:
@@ -53,7 +55,7 @@ class JanusLock : public PollingComponent, public ble_client::BLEClientNode {
   void on_notify_(const uint8_t *data, uint16_t len);
   void publish_status_(const uint8_t *r, uint16_t len);
   void queue_cmd_(const std::string &hex);
-  void flush_pending_();
+  void pump_();  // send the next queued command, or disconnect when done
 
   std::string master_token_;
   sensor::Sensor *battery_sensor_{nullptr};
@@ -64,8 +66,9 @@ class JanusLock : public PollingComponent, public ble_client::BLEClientNode {
   uint16_t rx_handle_{0};
   uint16_t tx_handle_{0};
   bool ready_{false};
-  bool hs_sent_{false};        // handshake sent this connection (dedupe)
-  std::string pending_cmd_;    // queued command hex (no padding) to run once connected
+  bool hs_sent_{false};              // handshake sent this connection (dedupe)
+  bool awaiting_response_{false};    // a command was written, waiting for its reply
+  std::vector<std::string> queue_;   // pending command hex frames (no padding), sent in order
 };
 
 }  // namespace janus_lock

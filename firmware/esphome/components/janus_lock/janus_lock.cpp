@@ -36,15 +36,27 @@ void JanusLock::setup() {
 }
 
 void JanusLock::queue_cmd_(const std::string &hex) {
-  this->pending_cmd_ = hex;
+  this->queue_.push_back(hex);
   this->parent()->set_enabled(true);  // trigger a connection (or use the current one)
-  this->flush_pending_();
+  if (this->ready_)
+    this->pump_();
 }
 
-void JanusLock::flush_pending_() {
-  if (this->rx_handle_ == 0 || this->pending_cmd_.empty()) return;
-  this->send_frame_(this->pending_cmd_, "cmd");
-  this->pending_cmd_.clear();
+// Send the next queued command (one at a time, waiting for each reply), or if the queue is
+// empty, disconnect after a short delay (connect-on-demand).
+void JanusLock::pump_() {
+  if (!this->ready_ || this->rx_handle_ == 0 || this->awaiting_response_) return;
+  if (this->queue_.empty()) {
+    this->set_timeout("disc", 800, [this]() {
+      if (this->queue_.empty()) this->parent()->set_enabled(false);
+    });
+    return;
+  }
+  this->cancel_timeout("disc");
+  std::string cmd = this->queue_.front();
+  this->queue_.erase(this->queue_.begin());
+  this->awaiting_response_ = true;
+  this->send_frame_(cmd, "cmd");
 }
 
 bool JanusLock::find_handles_() {
@@ -67,6 +79,7 @@ void JanusLock::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
     case ESP_GATTC_DISCONNECT_EVT:
       this->ready_ = false;
       this->hs_sent_ = false;
+      this->awaiting_response_ = false;
       this->rx_handle_ = this->tx_handle_ = 0;
       this->node_state = espbt::ClientState::IDLE;
       ESP_LOGI(TAG, "disconnected");
@@ -147,11 +160,16 @@ void JanusLock::on_notify_(const uint8_t *data, uint16_t len) {
   if (data[0] == 0xaa && data[1] != 0x55) {  // handshake / status response (aa03/aabb/aa1x)
     this->publish_status_(data, len);
     this->ready_ = true;
-    this->flush_pending_();
-    this->set_timeout("disc", 2500, [this]() { this->parent()->set_enabled(false); });
+    this->awaiting_response_ = false;
+    this->pump_();  // run any queued commands, then disconnect
     return;
   }
-  if (data[0] == 0xaa && data[1] == 0x55) return;  // heartbeat ack
+  if (data[0] == 0xaa && data[1] == 0x55) {  // heartbeat ack
+    this->awaiting_response_ = false;
+    this->pump_();
+    return;
+  }
+  // a command response
   bool ok = (data[2] == 0x00);
   if (data[0] == 0x04 && data[1] == 0x01) {
     ESP_LOGI(TAG, "unlock %s", ok ? "OK" : "FAIL");
@@ -161,7 +179,11 @@ void JanusLock::on_notify_(const uint8_t *data, uint16_t len) {
     if (ok && this->lock_ != nullptr) ((lock::Lock *) this->lock_)->publish_state(lock::LOCK_STATE_LOCKED);
   } else if (data[0] == 0x09) {
     ESP_LOGI(TAG, "setting 09%02x %s", data[1], ok ? "OK" : "FAIL");
+  } else if (data[0] == 0x08 || (data[0] == 0x0a && data[1] == 0x01)) {
+    ESP_LOGI(TAG, "passcode %02x%02x %s", data[0], data[1], ok ? "OK" : "FAIL");
   }
+  this->awaiting_response_ = false;
+  this->pump_();  // next queued command, or disconnect
 }
 
 void JanusLock::publish_status_(const uint8_t *r, uint16_t len) {
@@ -184,6 +206,34 @@ void JanusLock::unlock() { this->queue_cmd_("0401" + this->master_token_); }
 void JanusLock::lock_it() { this->queue_cmd_("0402" + this->master_token_); }
 void JanusLock::queue_setting(const std::string &opcode, bool on) {
   this->queue_cmd_(opcode + (on ? "01" : "00"));
+}
+
+// Provision a passcode: updatePasscode1 (0801 + tokenRaw), then updatePasscode2
+// (0802 + tokenId(2,LE) + len(1) + each digit as %02x). tokenRaw comes from /api/v1/token/add.
+void JanusLock::provision_passcode(std::string token_raw, int token_id, std::string passcode) {
+  char b[8];
+  this->queue_cmd_("0801" + token_raw);
+  std::string f2 = "0802";
+  snprintf(b, sizeof(b), "%02x%02x", token_id & 0xff, (token_id >> 8) & 0xff);
+  f2 += b;
+  snprintf(b, sizeof(b), "%02x", (int) passcode.size());
+  f2 += b;
+  for (char c : passcode) {
+    snprintf(b, sizeof(b), "%02x", (uint8_t) c);
+    f2 += b;
+  }
+  this->queue_cmd_(f2);
+  ESP_LOGI(TAG, "provisioning passcode tokenId=%d (%d digits)", token_id, (int) passcode.size());
+}
+
+// Remove a passcode: removePasscode (0a01 + tokenId(2,LE)).
+void JanusLock::remove_passcode(int token_id) {
+  char b[8];
+  std::string f = "0a01";
+  snprintf(b, sizeof(b), "%02x%02x", token_id & 0xff, (token_id >> 8) & 0xff);
+  f += b;
+  this->queue_cmd_(f);
+  ESP_LOGI(TAG, "removing passcode tokenId=%d", token_id);
 }
 
 }  // namespace janus_lock

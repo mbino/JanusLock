@@ -1,6 +1,7 @@
 """The Janus Lock integration (cloud side: 1-day codes, passcode tokens)."""
 from __future__ import annotations
 
+import asyncio
 import datetime
 import logging
 from datetime import timedelta
@@ -122,4 +123,90 @@ def _register_services(hass: HomeAssistant) -> None:
             }
         ),
         supports_response=SupportsResponse.ONLY,
+    )
+
+    _DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+    async def _add_pin(call: ServiceCall):
+        coord = _first_coordinator(hass)
+        if coord is None:
+            return {"error": "not configured"}
+        lock_id = call.data.get("lock_id") or next(iter(coord.data.keys()), None)
+        passcode = call.data["passcode"]
+        one_time = call.data.get("one_time", False)
+        days = call.data.get("weekdays") or _DAYS
+        payload = {
+            "lockId": lock_id,
+            "passcode": passcode,
+            "recipientUsername": "",
+            "remainingUnlockCount": 1 if one_time else 255,
+            "timeValidFrom": "",
+            "timeValidTo": "",
+            "dateValidFrom": "",
+            "dateValidTo": "",
+            "weekday": {d: (d in days) for d in _DAYS},
+        }
+        token = await coord.api.add_token(payload)
+        token_id = token["tokenId"]
+        token_raw = token["tokenRaw"]
+        node = call.data.get("esphome_node", "januslock")
+        await hass.services.async_call(
+            "esphome",
+            f"{node}_provision_passcode",
+            {"token_raw": token_raw, "token_id": token_id, "passcode": passcode},
+            blocking=True,
+        )
+        # give the ESP32 time to connect + write both frames, then confirm
+        await asyncio.sleep(12)
+        try:
+            await coord.api.confirm_passcode_synced(lock_id, token_id)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("confirm-synced failed: %s", err)
+        await coord.async_request_refresh()
+        return {"token_id": token_id, "passcode": passcode}
+
+    async def _remove_pin(call: ServiceCall):
+        coord = _first_coordinator(hass)
+        if coord is None:
+            return
+        lock_id = call.data.get("lock_id") or next(iter(coord.data.keys()), None)
+        token_id = call.data["token_id"]
+        node = call.data.get("esphome_node", "januslock")
+        await hass.services.async_call(
+            "esphome", f"{node}_remove_passcode", {"token_id": token_id}, blocking=True
+        )
+        await asyncio.sleep(8)
+        try:
+            await coord.api.remove_token(lock_id, token_id)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("token/remove failed: %s", err)
+        await coord.async_request_refresh()
+
+    hass.services.async_register(
+        DOMAIN,
+        "add_pin",
+        _add_pin,
+        schema=vol.Schema(
+            {
+                vol.Required("passcode"): cv.string,
+                vol.Optional("one_time", default=False): cv.boolean,
+                vol.Optional("weekdays"): vol.All(cv.ensure_list, [vol.In(_DAYS)]),
+                vol.Optional("lock_id"): cv.string,
+                vol.Optional("esphome_node"): cv.string,
+            }
+        ),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "remove_pin",
+        _remove_pin,
+        schema=vol.Schema(
+            {
+                vol.Required("token_id"): cv.positive_int,
+                vol.Optional("lock_id"): cv.string,
+                vol.Optional("esphome_node"): cv.string,
+            }
+        ),
     )

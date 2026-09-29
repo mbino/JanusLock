@@ -14,3 +14,66 @@ get_day_code:
       example: "20260930"
       selector:
         text:
+
+add_pin:
+  name: Add PIN code
+  description: >-
+    Create a passcode on the Janus cloud and push it to the lock over BLE (via the ESPHome
+    device). Returns the new token_id.
+  fields:
+    passcode:
+      name: PIN code
+      description: The numeric code (as digits).
+      required: true
+      example: "1234"
+      selector:
+        text:
+    one_time:
+      name: One-time
+      description: If on, the code works only once.
+      default: false
+      selector:
+        boolean:
+    weekdays:
+      name: Allowed weekdays
+      description: Optional; days the code is valid (default all).
+      example: "[monday, friday]"
+      selector:
+        select:
+          multiple: true
+          options: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+    esphome_node:
+      name: ESPHome node name
+      description: The ESPHome device name that drives the lock over BLE.
+      default: januslock
+      selector:
+        text:
+    lock_id:
+      name: Lock ID
+      description: Optional; defaults to the first lock.
+      selector:
+        text:
+
+remove_pin:
+  name: Remove PIN code
+  description: Remove a passcode from the lock (over BLE) and from the Janus cloud.
+  fields:
+    token_id:
+      name: Token ID
+      description: The token_id of the passcode to remove (see the lock's passcodes attribute).
+      required: true
+      example: 8
+      selector:
+        number:
+          min: 1
+          max: 65535
+          mode: box
+    esphome_node:
+      name: ESPHome node name
+      default: januslock
+      selector:
+        text:
+    lock_id:
+      name: Lock ID
+      selector:
+        text:

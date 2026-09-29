@@ -45,4 +45,18 @@ class JanusDayCodeSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self):
         data = self.coordinator.data.get(self._lock_id, {})
-        return {"date": data.get("day_date")}
+        passcodes = []
+        for tok in data.get("tokens", []):
+            if not tok.get("passcode") and not tok.get("passcodeActivated"):
+                # skip master token (tokenId 1) which has no passcode
+                if tok.get("tokenId") == 1:
+                    continue
+            info = tok.get("info", {})
+            passcodes.append(
+                {
+                    "token_id": tok.get("tokenId"),
+                    "passcode": tok.get("passcode"),
+                    "one_time": info.get("remainingUnlockCount") == 1,
+                }
+            )
+        return {"date": data.get("day_date"), "passcodes": passcodes}

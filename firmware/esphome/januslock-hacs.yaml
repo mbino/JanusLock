@@ -14,6 +14,19 @@ esp32:
 
 logger:
 api:
+  services:
+    - service: provision_passcode
+      variables:
+        token_raw: string
+        token_id: int
+        passcode: string
+      then:
+        - lambda: 'id(janus_hub).provision_passcode(token_raw, token_id, passcode);'
+    - service: remove_passcode
+      variables:
+        token_id: int
+      then:
+        - lambda: 'id(janus_hub).remove_passcode(token_id);'
 ota:
   - platform: esphome
 

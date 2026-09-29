@@ -1,3 +1,6 @@
+## v0.6.0
+- PIN-code management, end to end. The ESPHome firmware gained BLE services to provision and remove passcodes (updatePasscode1/2, removePasscode), and the Home Assistant integration gained `januslock.add_pin` (create a code — permanent or one-time, optional weekdays — on the cloud and push it to the lock) and `januslock.remove_pin`. The lock's current passcodes are listed as an attribute on the Day code sensor.
+
 ## v0.5.0
 - Added a Home Assistant custom integration (HACS-installable) for the Janus cloud side. Sign in with your Janus app account to get a per-lock "Day code" sensor — the offline 1-day passcode that works on the current day — plus a `januslock.get_day_code` service to fetch the code for any date. (Provisioning custom PIN codes to the lock is the next step.)
 

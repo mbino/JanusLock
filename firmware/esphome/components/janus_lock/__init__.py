@@ -11,7 +11,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@alexmbino"]
 DEPENDENCIES = ["ble_client"]
-AUTO_LOAD = ["sensor", "binary_sensor"]
+AUTO_LOAD = ["sensor", "binary_sensor", "switch", "lock"]
 MULTI_CONF = True
 
 janus_lock_ns = cg.esphome_ns.namespace("janus_lock")
@@ -21,9 +21,6 @@ JanusLock = janus_lock_ns.class_(
 
 CONF_MASTER_TOKEN = "master_token"
 CONF_JANUS_LOCK_ID = "janus_lock_id"
-CONF_NORMAL_LOCK = "normal_lock"
-CONF_AUTO_LOCK = "auto_lock"
-CONF_LOCK_SOUND = "lock_sound"
 CONF_CALIBRATED = "calibrated"
 
 CONFIG_SCHEMA = (
@@ -37,22 +34,12 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
-            cv.Optional(CONF_NORMAL_LOCK): binary_sensor.binary_sensor_schema(),
-            cv.Optional(CONF_AUTO_LOCK): binary_sensor.binary_sensor_schema(),
-            cv.Optional(CONF_LOCK_SOUND): binary_sensor.binary_sensor_schema(),
             cv.Optional(CONF_CALIBRATED): binary_sensor.binary_sensor_schema(),
         }
     )
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.polling_component_schema("12h"))
     .extend(ble_client.BLE_CLIENT_SCHEMA)
 )
-
-_BS = [
-    (CONF_NORMAL_LOCK, "set_bs_normal_lock"),
-    (CONF_AUTO_LOCK, "set_bs_auto_lock"),
-    (CONF_LOCK_SOUND, "set_bs_lock_sound"),
-    (CONF_CALIBRATED, "set_bs_calibrated"),
-]
 
 
 async def to_code(config):
@@ -63,7 +50,6 @@ async def to_code(config):
     if CONF_BATTERY_LEVEL in config:
         s = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
         cg.add(var.set_battery_sensor(s))
-    for key, setter in _BS:
-        if key in config:
-            bs = await binary_sensor.new_binary_sensor(config[key])
-            cg.add(getattr(var, setter)(bs))
+    if CONF_CALIBRATED in config:
+        bs = await binary_sensor.new_binary_sensor(config[CONF_CALIBRATED])
+        cg.add(var.set_bs_calibrated(bs))

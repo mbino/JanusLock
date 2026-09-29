@@ -26,9 +26,9 @@ external_components:
       type: git
       url: https://github.com/mbino/JanusLock
       ref: main
-    path: firmware/esphome/components
+      path: firmware/esphome/components
     components: [janus_lock]
-    refresh: 1d
+    refresh: 1d   # set to "always" while developing to re-pull every build
 
 esp32_ble_tracker:
 
@@ -43,12 +43,6 @@ janus_lock:
   update_interval: 12h   # periodic status wake; connect-on-demand otherwise
   battery_level:
     name: "Slot batterij"
-  normal_lock:
-    name: "Deurkruk-modus actief"
-  auto_lock:
-    name: "Auto-lock"
-  lock_sound:
-    name: "Slotgeluid"
   calibrated:
     name: "Gekalibreerd"
 
@@ -60,4 +54,25 @@ lock:
 switch:
   - platform: janus_lock
     janus_lock_id: janus_hub
+    setting: passage
     name: "Deurkruk-modus"
+  - platform: janus_lock
+    janus_lock_id: janus_hub
+    setting: auto_lock
+    name: "Auto-lock"
+  - platform: janus_lock
+    janus_lock_id: janus_hub
+    setting: lock_sound
+    name: "Slotgeluid"
+  - platform: janus_lock
+    janus_lock_id: janus_hub
+    setting: break_in_alarm
+    name: "Inbraakalarm"
+  - platform: janus_lock
+    janus_lock_id: janus_hub
+    setting: button_enabled
+    name: "Knop-vergrendeling"
+  - platform: janus_lock
+    janus_lock_id: janus_hub
+    setting: unlatch
+    name: "Unlatch"

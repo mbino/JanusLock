@@ -1,3 +1,8 @@
+## v0.3.0
+- ESPHome integration now runs on real hardware in Home Assistant: unlock, passage mode, battery and status all working, built from the public repo via the ESPHome add-on.
+- Connect-on-demand: the ESP32 only connects to the lock for a command or a periodic status check, then disconnects — so it does not drain the lock's batteries.
+- Added switches for the lock's settings — auto-lock, lock sound, break-in alarm, button lock, unlatch, and passage mode — each reflecting the lock's current state and toggling it.
+
 ## v0.2.0
 - Proved the protocol end-to-end on real hardware: the ESP32 by the door unlocks the lock and toggles passage (free-handle) mode, driven entirely over WiFi.
 - Confirmed the handshake is always sent as opcode `aabb` + "BIGTEARICE"; the lock answers with its model opcode (H03 → `aa03`).

@@ -3,9 +3,9 @@
 namespace esphome {
 namespace janus_lock {
 
-void JanusPassageSwitch::write_state(bool state) {
-  if (this->parent_ != nullptr) this->parent_->set_passage(state);
-  this->publish_state(state);
+void JanusSettingSwitch::write_state(bool state) {
+  if (this->parent_ != nullptr) this->parent_->queue_setting(this->opcode_, state);
+  this->publish_state(state);  // optimistic; corrected on the next status read
 }
 
 }  // namespace janus_lock

@@ -5,15 +5,31 @@ from .. import janus_lock_ns, JanusLock, CONF_JANUS_LOCK_ID
 
 DEPENDENCIES = ["janus_lock"]
 
-JanusPassageSwitch = janus_lock_ns.class_(
-    "JanusPassageSwitch", switch.Switch, cg.Component
-)
+JanusSettingSwitch = janus_lock_ns.class_("JanusSettingSwitch", switch.Switch, cg.Component)
 
-CONFIG_SCHEMA = switch.switch_schema(JanusPassageSwitch).extend(
-    {
-        cv.GenerateID(CONF_JANUS_LOCK_ID): cv.use_id(JanusLock),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONF_SETTING = "setting"
+
+# setting name -> (opcode, status flag bit; -1 = no status feedback)
+SETTINGS = {
+    "passage": ("0901", 0),        # normal_lock / free-handle
+    "lock_sound": ("0902", 1),
+    "auto_lock": ("0903", 2),
+    "break_in_alarm": ("0904", 3),
+    "unlatch": ("0906", 4),
+    "button_enabled": ("0907", 5),
+    "lock_direction": ("0905", -1),  # left-handed; no status bit
+}
+
+CONFIG_SCHEMA = (
+    switch.switch_schema(JanusSettingSwitch)
+    .extend(
+        {
+            cv.GenerateID(CONF_JANUS_LOCK_ID): cv.use_id(JanusLock),
+            cv.Required(CONF_SETTING): cv.one_of(*SETTINGS.keys(), lower=True),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):
@@ -21,4 +37,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     parent = await cg.get_variable(config[CONF_JANUS_LOCK_ID])
     cg.add(var.set_parent(parent))
-    cg.add(parent.set_passage_switch(var))
+    opcode, bit = SETTINGS[config[CONF_SETTING]]
+    cg.add(var.set_opcode(opcode))
+    cg.add(var.set_flag_bit(bit))
+    cg.add(parent.add_setting_switch(var))

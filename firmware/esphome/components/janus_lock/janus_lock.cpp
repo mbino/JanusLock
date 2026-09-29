@@ -25,25 +25,26 @@ static std::string ascii_to_hex(const char *s) {
 }
 
 void JanusLock::dump_config() {
-  ESP_LOGCONFIG(TAG, "Janus Lock (masterToken %d chars)", (int) this->master_token_.size());
+  ESP_LOGCONFIG(TAG, "Janus Lock (masterToken %d chars, %d switches)", (int) this->master_token_.size(),
+                (int) this->switches_.size());
 }
 
 void JanusLock::setup() {
   // On-demand connection to save the lock's batteries. The ble_client auto-connects once at
   // boot for an initial status read; after every handshake we disconnect (see on_notify_),
-  // and only reconnect for a command (unlock/lock/passage) or the periodic status refresh.
+  // and only reconnect for a command or the periodic status refresh.
+}
+
+void JanusLock::queue_cmd_(const std::string &hex) {
+  this->pending_cmd_ = hex;
+  this->parent()->set_enabled(true);  // trigger a connection (or use the current one)
+  this->flush_pending_();
 }
 
 void JanusLock::flush_pending_() {
-  if (this->rx_handle_ == 0 || this->pending_ == P_NONE) return;
-  switch (this->pending_) {
-    case P_UNLOCK: this->send_frame_("0401" + this->master_token_, "unlock"); break;
-    case P_LOCK: this->send_frame_("0402" + this->master_token_, "lock"); break;
-    case P_PASS_ON: this->send_frame_("090101", "passage-on"); break;
-    case P_PASS_OFF: this->send_frame_("090100", "passage-off"); break;
-    default: break;
-  }
-  this->pending_ = P_NONE;
+  if (this->rx_handle_ == 0 || this->pending_cmd_.empty()) return;
+  this->send_frame_(this->pending_cmd_, "cmd");
+  this->pending_cmd_.clear();
 }
 
 bool JanusLock::find_handles_() {
@@ -72,19 +73,13 @@ void JanusLock::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
 
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      bool ok = this->find_handles_();
-      ESP_LOGI(TAG, "search cmpl: find=%d rx=%u tx=%u", ok, this->rx_handle_, this->tx_handle_);
-      if (!ok) break;
-      auto st = esp_ble_gattc_register_for_notify(gattc_if, this->parent()->get_remote_bda(),
-                                                  this->tx_handle_);
-      ESP_LOGI(TAG, "reg_for_notify -> %d", st);
+      if (!this->find_handles_()) break;
+      esp_ble_gattc_register_for_notify(gattc_if, this->parent()->get_remote_bda(), this->tx_handle_);
       break;
     }
 
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      ESP_LOGI(TAG, "REG_FOR_NOTIFY_EVT (rx=%u tx=%u)", this->rx_handle_, this->tx_handle_);
       this->node_state = espbt::ClientState::ESTABLISHED;
-      // Enable notifications: write CCCD (0x2902) = 0x0001
       uint8_t v[2] = {0x01, 0x00};
       esp_gattc_descr_elem_t descr;
       uint16_t count = 1;
@@ -92,7 +87,6 @@ void JanusLock::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
                                                       this->tx_handle_,
                                                       espbt::ESPBTUUID::from_uint16(0x2902).get_uuid(),
                                                       &descr, &count);
-      ESP_LOGI(TAG, "cccd lookup s=%d count=%u", s, count);
       if (s == ESP_OK && count > 0) {
         esp_ble_gattc_write_char_descr(gattc_if, this->parent()->get_conn_id(), descr.handle, sizeof(v),
                                        v, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
@@ -135,21 +129,18 @@ void JanusLock::send_frame_(const std::string &hex_in, const char *label) {
                            ESP_GATT_AUTH_REQ_NONE);
 }
 
-void JanusLock::send_handshake_() {
-  this->send_frame_("aabb" + ascii_to_hex("BIGTEARICE"), "handshake");
-}
+void JanusLock::send_handshake_() { this->send_frame_("aabb" + ascii_to_hex("BIGTEARICE"), "handshake"); }
 
 void JanusLock::update() {
-  // Periodic wake: connect; the handshake auto-refreshes status, then we disconnect.
   ESP_LOGD(TAG, "periodic wake for status refresh");
   this->parent()->set_enabled(true);
 }
 
 void JanusLock::on_notify_(const uint8_t *data, uint16_t len) {
   if (len < 3) return;
-  char buf[64];
-  size_t n = len < 20 ? len : 20;
+  char buf[8];
   std::string hx;
+  size_t n = len < 20 ? len : 20;
   for (size_t i = 0; i < n; i++) { snprintf(buf, sizeof(buf), "%02x", data[i]); hx += buf; }
   ESP_LOGD(TAG, "<- %s", hx.c_str());
 
@@ -157,20 +148,19 @@ void JanusLock::on_notify_(const uint8_t *data, uint16_t len) {
     this->publish_status_(data, len);
     this->ready_ = true;
     this->flush_pending_();
-    // done with this wake — disconnect shortly (after any command response arrives)
     this->set_timeout("disc", 2500, [this]() { this->parent()->set_enabled(false); });
     return;
   }
   if (data[0] == 0xaa && data[1] == 0x55) return;  // heartbeat ack
   bool ok = (data[2] == 0x00);
-  if (data[0] == 0x04 && data[1] == 0x01) {           // unlock
+  if (data[0] == 0x04 && data[1] == 0x01) {
     ESP_LOGI(TAG, "unlock %s", ok ? "OK" : "FAIL");
     if (ok && this->lock_ != nullptr) ((lock::Lock *) this->lock_)->publish_state(lock::LOCK_STATE_UNLOCKED);
-  } else if (data[0] == 0x04 && data[1] == 0x02) {    // lock
+  } else if (data[0] == 0x04 && data[1] == 0x02) {
     ESP_LOGI(TAG, "lock %s", ok ? "OK" : "FAIL");
     if (ok && this->lock_ != nullptr) ((lock::Lock *) this->lock_)->publish_state(lock::LOCK_STATE_LOCKED);
-  } else if (data[0] == 0x09 && data[1] == 0x01) {    // setNormalLock (passage)
-    ESP_LOGI(TAG, "passage %s", ok ? "OK" : "FAIL");
+  } else if (data[0] == 0x09) {
+    ESP_LOGI(TAG, "setting 09%02x %s", data[1], ok ? "OK" : "FAIL");
   }
 }
 
@@ -186,20 +176,14 @@ void JanusLock::publish_status_(const uint8_t *r, uint16_t len) {
   ESP_LOGI(TAG, "status fw=%u.%u batt=%d%% (raw %u) timerValid=%d flags=0x%02x", fw_major, fw_minor, pct,
            volt, timer_valid, flags);
   if (this->battery_sensor_ != nullptr) this->battery_sensor_->publish_state(pct);
-  bool normal_lock = flags & 0x01;
-  if (this->bs_normal_lock_ != nullptr) this->bs_normal_lock_->publish_state(normal_lock);
-  if (this->bs_lock_sound_ != nullptr) this->bs_lock_sound_->publish_state(flags & 0x02);
-  if (this->bs_auto_lock_ != nullptr) this->bs_auto_lock_->publish_state(flags & 0x04);
   if (this->bs_calibrated_ != nullptr) this->bs_calibrated_->publish_state(flags & 0x80);
-  if (this->passage_switch_ != nullptr) ((switch_::Switch *) this->passage_switch_)->publish_state(normal_lock);
+  for (auto *sw : this->switches_) sw->update_from_flags(flags);
 }
 
-void JanusLock::unlock() { this->pending_ = P_UNLOCK; this->parent()->set_enabled(true); this->flush_pending_(); }
-void JanusLock::lock_it() { this->pending_ = P_LOCK; this->parent()->set_enabled(true); this->flush_pending_(); }
-void JanusLock::set_passage(bool on) {
-  this->pending_ = on ? P_PASS_ON : P_PASS_OFF;
-  this->parent()->set_enabled(true);
-  this->flush_pending_();
+void JanusLock::unlock() { this->queue_cmd_("0401" + this->master_token_); }
+void JanusLock::lock_it() { this->queue_cmd_("0402" + this->master_token_); }
+void JanusLock::queue_setting(const std::string &opcode, bool on) {
+  this->queue_cmd_(opcode + (on ? "01" : "00"));
 }
 
 }  // namespace janus_lock

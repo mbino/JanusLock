@@ -1,0 +1,39 @@
+# --- Secrets & personal data (NEVER commit — repo is public/HACS) ---
+private/
+*.secret
+secrets.local.*
+login.json
+profile.json
+
+# --- Copyrighted third-party app (do not redistribute) ---
+apk/
+decompiled/
+*.apk
+*.ipa
+
+# --- Capture artifacts ---
+*.log
+*.zip
+bugreport*
+btsnoop*
+btsnooz*
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Firmware secrets ---
+**/secrets.h
+firmware/**/.pio/
+
+# --- ESPHome ---
+**/secrets.yaml
+firmware/esphome/.esphome/

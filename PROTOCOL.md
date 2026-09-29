@@ -209,8 +209,12 @@ Schematic (one-time PIN,  tokenId 10):    `0A 00  01  <13-byte schedule block>  
 (Concrete `tokenRaw` values are per-lock credentials — fetch your own from the profile API.)
 
 - `count` = `remainingUnlockCount` clamped to a byte: `0xff` (255) ≈ permanent, `0x01` = one-time.
-- The 13-byte schedule block encodes the weekday bitmap + time/date validity window
-  (a fixed pattern for an "all week, always valid" token).
+- The 13-byte schedule block encodes the validity window. The **server** fills it in from the
+  `token/add` fields, so you push `tokenRaw` verbatim — you don't build the schedule yourself.
+  Decoded by diffing tokens (verified against a real lock): a **weekday bitmask** byte
+  (`0x7f` = whole week, e.g. `0x22` = Mon+Fri), a **daily time window** (start/end as `HH MM`;
+  a permanent token is `00:00`–`23:59` → `00 00 … 17 3b`), and a **date range** (`yy mm dd`
+  start/end, e.g. `1a 0a 01` = 2026-10-01). All limits off ⇒ the "always valid" pattern.
 - `version` matches `token.info.version` and increments on edit.
 
 **Adding / editing a PIN** the official way: `POST /api/v1/token/add` (`GrantAccessRightRequest`)
@@ -238,8 +242,8 @@ Two kinds of access:
 | `lockId` | target lock |
 | `passcode` | PIN digits (e.g. "1234"); omit for fingerprint |
 | `remainingUnlockCount` | `1` = one-time ("eenmalig"); large/255 = unlimited (permanent) |
-| `timeValidFrom` / `timeValidTo` | time-of-day window ("beperkte toegangstijd") |
-| `dateValidFrom` / `dateValidTo` | date range ("beperkte toegangsdatum") |
+| `timeValidFrom` / `timeValidTo` | daily time-of-day window ("beperkte toegangstijd"), `"HH:mm"` (e.g. `"09:00"`); empty = no limit |
+| `dateValidFrom` / `dateValidTo` | date range ("beperkte toegangsdatum"), `"yyyy-MM-dd"` (e.g. `"2026-10-01"`); empty = no limit |
 | `weekday` | `{monday..sunday}` booleans ("beperkte dagtoegang") |
 | `fingerprintId` | set for a fingerprint token |
 | `recipientUsername` | to share to another Janus account (not needed for own use) |

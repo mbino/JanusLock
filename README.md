@@ -12,12 +12,12 @@ Home Assistant.
 
 The BLE protocol is fully documented in [`PROTOCOL.md`](PROTOCOL.md). Supported operations:
 
-- **Unlock / lock**
+- **Unlock** — open the handle (the H03 "Smart Handle" has no remote *lock* command; auto-lock or closing the door re-locks it)
 - **Passage mode** (free-handle / "normale deurkruk" — disables outside locking)
-- **Passcode (PIN) management** — add/remove, one-time or permanent
+- **Passcode (PIN) management** — add/remove; permanent, one-time, or limited to weekdays, a daily time window, and/or a date range
+- **1-day offline codes** (server-side TOTP that works for a given calendar day, no BLE needed)
 - **Battery + status** (lock state flags, firmware version)
-- **Access / unlock history**
-- **Fingerprint** enrollment & removal, keypad pairing, calibration, DFU
+- **Access / unlock history**, **fingerprint** enrolment & removal, keypad pairing, calibration, DFU *(documented in `PROTOCOL.md`; not all wired into the integration yet)*
 
 ## How it works
 
@@ -32,13 +32,14 @@ The BLE protocol is fully documented in [`PROTOCOL.md`](PROTOCOL.md). Supported 
 | Phase | What | Status |
 |---|---|---|
 | 1. Protocol RE | Decompile app, document protocol | ✅ done (`PROTOCOL.md`) |
-| 2. PoC firmware | ESP32 (NimBLE) proves handshake→unlock, tiny web UI | 🔧 in progress (`firmware/poc`) |
-| 3. Final firmware | **ESPHome external component** on the Olimex ESP32-PoE2 by the door: native HA `lock`/`switch`/`sensor` entities | ⏳ planned |
-| 4. (optional) HACS | Python HA integration + ESPHome BLE proxy, with per-user Janus login config-flow | ⏳ optional |
+| 2. PoC firmware | ESP32 (NimBLE) proves handshake→unlock, tiny web UI | ✅ done (`firmware/poc`) |
+| 3. Final firmware | **ESPHome external component** on the Olimex ESP32-PoE2 by the door: native HA unlock **button** / setting **switches** / status **sensors** | ✅ done (`firmware/esphome`) |
+| 4. HACS cloud integration | Python HA integration for the Janus cloud (1-day codes + PIN provisioning), per-user Janus login config-flow | ✅ done (`custom_components/januslock`) |
 
-For a dedicated PoE device at the door, the **ESPHome external component** (phase 3) is the
-target: always-on, no separate proxy, native Home Assistant integration. The PoC's C++
-protocol code ports directly into it.
+The **ESPHome external component** (phase 3) runs on the dedicated PoE device at the door:
+always-on, no separate proxy, native Home Assistant integration. It connects to the lock
+**on demand** — only for a command or a periodic status check — so it does not drain the
+lock's batteries.
 
 ## Home Assistant integration (cloud side)
 

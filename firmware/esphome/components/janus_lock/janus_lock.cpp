@@ -3,7 +3,8 @@
 #include "esphome/components/lock/lock.h"
 #include "esphome/core/application.h"
 #ifdef USE_API
-#include "esphome/components/api/api_server.h"
+#include "esphome/components/api/custom_api_device.h"
+#include <map>
 #endif
 #include "janus_lock_lock.h"
 #include "janus_lock_switch.h"
@@ -301,24 +302,16 @@ void JanusLock::flush_history(int id) {
 // entity state, has no length limit). The integration uploads it to the Janus cloud and flushes.
 void JanusLock::finish_history_() {
   this->history_json_ += "]";
-#ifdef USE_API
-  if (api::global_api_server != nullptr) {
-    api::HomeassistantServiceResponse r;
-    r.service = "januslock.ingest_history";
-    auto add = [&](const char *k, const std::string &v) {
-      api::HomeassistantServiceMap m;
-      m.key = k;
-      m.value = v;
-      r.data.push_back(m);
-    };
-    add("node", App.get_name());
-    add("entries", this->history_json_);
-    add("max_id", std::to_string(this->hist_max_id_));
-    add("count", std::to_string(this->hist_count_));
-    add("id_start", std::to_string(this->hist_start_));
-    add("id_end", std::to_string(this->hist_end_));
-    api::global_api_server->send_homeassistant_service_call(r);
-  }
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+  api::CustomAPIDevice dev;
+  std::map<std::string, std::string> data;
+  data["node"] = App.get_name();
+  data["entries"] = this->history_json_;
+  data["max_id"] = std::to_string(this->hist_max_id_);
+  data["count"] = std::to_string(this->hist_count_);
+  data["id_start"] = std::to_string(this->hist_start_);
+  data["id_end"] = std::to_string(this->hist_end_);
+  dev.call_homeassistant_service("januslock.ingest_history", data);
 #endif
   ESP_LOGI(TAG, "history: collected %d entr(ies), handed to HA", this->hist_count_);
   this->reading_history_ = false;

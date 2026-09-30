@@ -6,6 +6,7 @@ import datetime
 import json
 import logging
 from datetime import timedelta
+from pathlib import Path
 
 import voluptuous as vol
 
@@ -105,7 +106,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     _register_services(hass)
+    await _register_frontend(hass)
     return True
+
+
+async def _register_frontend(hass: HomeAssistant) -> None:
+    """Serve and auto-load the custom Lovelace card (available as `custom:janus-lock-card`)."""
+    if hass.data.get(f"{DOMAIN}_frontend"):
+        return
+    hass.data[f"{DOMAIN}_frontend"] = True
+    from homeassistant.components.frontend import add_extra_js_url
+    from homeassistant.components.http import StaticPathConfig
+
+    url = "/januslock_static/janus-lock-card.js"
+    path = str(Path(__file__).parent / "www" / "janus-lock-card.js")
+    try:
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(url, path, False)]
+        )
+        add_extra_js_url(hass, url)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.warning("could not register the Janus Lock card: %s", err)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

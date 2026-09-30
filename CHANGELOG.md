@@ -1,3 +1,6 @@
+## v0.9.0
+- Added a **custom Lovelace card** for managing the lock from a normal dashboard — no more Developer Tools. It has a form to add a code (with the one-time / time-window / date-range / weekday options), a list of existing PIN codes each with a Remove button, the enrolled fingerprints, and the recent unlocks with a "Sync now" button. The integration serves and auto-loads the card itself, so just add a card of type `custom:janus-lock-card` to a dashboard (the entity is auto-detected).
+
 ## v0.8.0
 - Unlock history & self-cleaning one-time codes. A new `januslock.sync_history` action reads the lock's unlock log over BLE and uploads it to the Janus cloud, exactly like the app does. The cloud then reconciles access — so **used one-time codes get cleaned up automatically** and the counts stay correct. The lock's on-board log is cleared after a successful upload, and the recent unlocks appear as a `recent_unlocks` attribute on the Day code sensor. Tip: run `sync_history` once a day with an automation.
 - Requires the ESPHome device's "Allow the device to perform Home Assistant actions" option to be enabled (so the lock can hand its history to Home Assistant).

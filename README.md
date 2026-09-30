@@ -63,6 +63,10 @@ Install the integration via HACS → *Custom repositories* → add `https://gith
 as an **Integration**, install "Janus Lock", restart, then add it from *Settings → Devices &
 Services* and sign in.
 
+For day-to-day use there's a **custom Lovelace card** (`custom:janus-lock-card`) — add a code with all
+its options, remove codes, see fingerprints, and view/sync the unlock history, all from a dashboard.
+The integration serves and auto-loads the card, so no separate frontend install is needed.
+
 ## Repository layout
 
 ```

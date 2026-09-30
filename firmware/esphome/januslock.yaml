@@ -26,6 +26,14 @@ api:
         token_id: int
       then:
         - lambda: 'id(janus_hub).remove_passcode(token_id);'
+    - service: read_history
+      then:
+        - lambda: 'id(janus_hub).read_history();'
+    - service: flush_history
+      variables:
+        history_id: int
+      then:
+        - lambda: 'id(janus_hub).flush_history(history_id);'
 ota:
   - platform: esphome
 

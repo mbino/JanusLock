@@ -1,6 +1,10 @@
 #include "janus_lock.h"
 #ifdef USE_ESP32
 #include "esphome/components/lock/lock.h"
+#include "esphome/core/application.h"
+#ifdef USE_API
+#include "esphome/components/api/api_server.h"
+#endif
 #include "janus_lock_lock.h"
 #include "janus_lock_switch.h"
 
@@ -169,6 +173,40 @@ void JanusLock::on_notify_(const uint8_t *data, uint16_t len) {
     this->pump_();
     return;
   }
+  // unlock-history read loop: getUnlockHistory1 (0501) -> 0502 x N -> getUnlockHistory3 (0503)
+  if (this->reading_history_ && data[0] == 0x05) {
+    if (data[1] == 0x01) {  // count at [3..4] LE
+      uint16_t count = (data[2] == 0) ? ((data[4] << 8) | data[3]) : 0;
+      ESP_LOGI(TAG, "history: %u entr(ies) to read", count);
+      if (count > 0) this->send_frame_("0502", "cmd");
+      else this->finish_history_();
+      return;
+    }
+    if (data[1] == 0x02) {  // one entry, or status != 0 = no more
+      if (data[2] == 0x00 && len >= 18) {
+        uint16_t token_id = (data[4] << 8) | data[3];
+        uint16_t token_ver = (data[15] << 8) | data[14];
+        uint16_t hid = (data[17] << 8) | data[16];
+        char e[176];
+        snprintf(e, sizeof(e),
+                 "%s{\"historyId\":%u,\"tokenId\":%u,\"result\":%u,\"tokenVersion\":%u,"
+                 "\"date\":\"%02d%02d-%02d-%02d %02d:%02d:%02d\"}",
+                 this->hist_count_ ? "," : "", hid, token_id, (unsigned) data[5], token_ver,
+                 data[6], data[7], data[8], data[9], data[10], data[11], data[12]);
+        this->history_json_ += e;
+        this->hist_count_++;
+        if (hid > this->hist_max_id_) this->hist_max_id_ = hid;
+        this->send_frame_("0502", "cmd");  // next entry
+      } else {
+        this->send_frame_("0503", "cmd");  // no more -> finalize
+      }
+      return;
+    }
+    if (data[1] == 0x03) {  // end of history
+      this->finish_history_();
+      return;
+    }
+  }
   // a command response
   bool ok = (data[2] == 0x00);
   if (data[0] == 0x04 && data[1] == 0x01) {
@@ -192,6 +230,8 @@ void JanusLock::publish_status_(const uint8_t *r, uint16_t len) {
   uint16_t volt = (r[13] << 8) | r[12];
   bool timer_valid = r[14] == 1;
   uint8_t flags = r[15];
+  this->hist_start_ = (r[17] << 8) | r[16];
+  this->hist_end_ = (r[19] << 8) | r[18];
   int pct = 0;
   for (size_t i = 0; i < sizeof(BATT_TABLE) / sizeof(BATT_TABLE[0]); i++)
     if (volt >= BATT_TABLE[i]) { pct = 100 - (int) i; break; }
@@ -234,6 +274,56 @@ void JanusLock::remove_passcode(int token_id) {
   f += b;
   this->queue_cmd_(f);
   ESP_LOGI(TAG, "removing passcode tokenId=%d", token_id);
+}
+
+// Read the lock's unlock history. Kicks off the 0501 -> 0502.. -> 0503 loop; the responses are
+// handled in on_notify_, and finish_history_() hands the collected entries to Home Assistant.
+void JanusLock::read_history() {
+  this->history_json_ = "[";
+  this->hist_count_ = 0;
+  this->hist_max_id_ = 0;
+  this->reading_history_ = true;
+  this->queue_cmd_("0501");
+  ESP_LOGI(TAG, "reading unlock history");
+}
+
+// Clear the lock's stored history up to (and including) history id `id` (flushUnlockHistoryUntil).
+void JanusLock::flush_history(int id) {
+  char b[8];
+  std::string f = "0b01";
+  snprintf(b, sizeof(b), "%02x%02x", id & 0xff, (id >> 8) & 0xff);
+  f += b;
+  this->queue_cmd_(f);
+  ESP_LOGI(TAG, "flushing history up to id=%d", id);
+}
+
+// Close the JSON array and push the history to Home Assistant via a service call (which, unlike an
+// entity state, has no length limit). The integration uploads it to the Janus cloud and flushes.
+void JanusLock::finish_history_() {
+  this->history_json_ += "]";
+#ifdef USE_API
+  if (api::global_api_server != nullptr) {
+    api::HomeassistantServiceResponse r;
+    r.service = "januslock.ingest_history";
+    auto add = [&](const char *k, const std::string &v) {
+      api::HomeassistantServiceMap m;
+      m.key = k;
+      m.value = v;
+      r.data.push_back(m);
+    };
+    add("node", App.get_name());
+    add("entries", this->history_json_);
+    add("max_id", std::to_string(this->hist_max_id_));
+    add("count", std::to_string(this->hist_count_));
+    add("id_start", std::to_string(this->hist_start_));
+    add("id_end", std::to_string(this->hist_end_));
+    api::global_api_server->send_homeassistant_service_call(r);
+  }
+#endif
+  ESP_LOGI(TAG, "history: collected %d entr(ies), handed to HA", this->hist_count_);
+  this->reading_history_ = false;
+  this->awaiting_response_ = false;
+  this->pump_();
 }
 
 }  // namespace janus_lock

@@ -101,3 +101,17 @@ remove_pin:
       name: Lock ID
       selector:
         text:
+
+sync_history:
+  name: Sync unlock history
+  description: >-
+    Read the lock's unlock history over BLE (via the ESPHome device) and upload it to the Janus
+    cloud. The cloud reconciles access tokens from this — e.g. used one-time codes are cleaned up.
+    Run it periodically (e.g. once a day) with an automation.
+  fields:
+    esphome_node:
+      name: ESPHome node name
+      description: The ESPHome device that drives the lock over BLE.
+      default: januslock
+      selector:
+        text:

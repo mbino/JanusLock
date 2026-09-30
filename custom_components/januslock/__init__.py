@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import json
 import logging
 from datetime import timedelta
 
@@ -61,6 +62,7 @@ class JanusCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(minutes=UPDATE_INTERVAL_MINUTES),
         )
         self.api = api
+        self.history: dict[str, list] = {}  # last synced unlock-history entries, per lock
 
     async def _async_update_data(self) -> dict:
         try:
@@ -281,5 +283,75 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Optional("esphome_node"): cv.string,
             }
         ),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+
+    async def _ingest_history(call: ServiceCall):
+        # Called BY the ESPHome device (device -> HA action) after it reads the lock's unlock
+        # history over BLE. We upload it to the Janus cloud (which reconciles tokens, e.g. removes
+        # used one-time codes) and then let the lock clear the entries we've persisted.
+        coord = _first_coordinator(hass)
+        if coord is None:
+            return
+        node = call.data.get("node") or "januslock"
+        lock_id = next(iter(coord.data.keys()), None)
+        try:
+            entries = json.loads(call.data.get("entries") or "[]")
+        except (ValueError, TypeError):
+            entries = []
+        max_id = int(call.data.get("max_id") or 0)
+        id_start = int(call.data.get("id_start") or 0)
+        id_end = int(call.data.get("id_end") or 0)
+        _LOGGER.debug("ingest_history: %d entries from %s (max_id=%s)", len(entries), node, max_id)
+        uploaded = True
+        if entries and lock_id:
+            try:
+                await coord.api.upload_history(lock_id, entries, id_start, id_end)
+            except Exception as err:  # noqa: BLE001
+                uploaded = False
+                _LOGGER.warning("unlock-history upload failed: %s", err)
+        if lock_id is not None:
+            coord.history[lock_id] = entries
+        # Only clear the lock's copy once the cloud has safely stored it.
+        if max_id and uploaded:
+            try:
+                await hass.services.async_call(
+                    "esphome", f"{node}_flush_history", {"history_id": max_id}, blocking=True
+                )
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("flush_history failed: %s", err)
+        await coord.async_request_refresh()
+
+    async def _sync_history(call: ServiceCall):
+        coord = _first_coordinator(hass)
+        if coord is None:
+            return {"error": "not configured"}
+        node = call.data.get("esphome_node", "januslock")
+        # Kick off the BLE read on the ESP; it calls back januslock.ingest_history a few seconds
+        # later with the entries, which then get uploaded + flushed.
+        await hass.services.async_call("esphome", f"{node}_read_history", {}, blocking=True)
+        return {"status": "reading history; entries sync a few seconds later"}
+
+    hass.services.async_register(
+        DOMAIN,
+        "ingest_history",
+        _ingest_history,
+        schema=vol.Schema(
+            {
+                vol.Optional("node"): cv.string,
+                vol.Optional("entries"): cv.string,
+                vol.Optional("max_id"): cv.string,
+                vol.Optional("count"): cv.string,
+                vol.Optional("id_start"): cv.string,
+                vol.Optional("id_end"): cv.string,
+            }
+        ),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "sync_history",
+        _sync_history,
+        schema=vol.Schema({vol.Optional("esphome_node"): cv.string}),
         supports_response=SupportsResponse.OPTIONAL,
     )

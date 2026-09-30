@@ -46,6 +46,8 @@ class JanusLock : public PollingComponent, public ble_client::BLEClientNode {
   void queue_setting(const std::string &opcode, bool on);  // e.g. "0903" + on
   void provision_passcode(std::string token_raw, int token_id, std::string passcode);
   void remove_passcode(int token_id);
+  void read_history();          // read the lock's unlock history, then hand it to HA
+  void flush_history(int id);   // clear the lock's history up to (and incl.) history id
   bool is_ready() const { return this->ready_; }
 
  protected:
@@ -56,6 +58,7 @@ class JanusLock : public PollingComponent, public ble_client::BLEClientNode {
   void publish_status_(const uint8_t *r, uint16_t len);
   void queue_cmd_(const std::string &hex);
   void pump_();  // send the next queued command, or disconnect when done
+  void finish_history_();  // close the JSON, push it to HA, resume normal flow
 
   std::string master_token_;
   sensor::Sensor *battery_sensor_{nullptr};
@@ -69,6 +72,13 @@ class JanusLock : public PollingComponent, public ble_client::BLEClientNode {
   bool hs_sent_{false};              // handshake sent this connection (dedupe)
   bool awaiting_response_{false};    // a command was written, waiting for its reply
   std::vector<std::string> queue_;   // pending command hex frames (no padding), sent in order
+
+  bool reading_history_{false};      // mid unlock-history read loop (0501/0502/0503)
+  std::string history_json_;         // accumulated entries as a JSON array
+  uint16_t hist_max_id_{0};          // highest history id seen (for flush)
+  int hist_count_{0};                // number of entries collected
+  uint16_t hist_start_{0};           // lock's history id range (from handshake status)
+  uint16_t hist_end_{0};
 };
 
 }  // namespace janus_lock

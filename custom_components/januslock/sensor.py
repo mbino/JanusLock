@@ -81,8 +81,10 @@ class JanusDayCodeSensor(CoordinatorEntity, SensorEntity):
             else:
                 # a fingerprint token stores its label in the passcode field
                 fingerprints.append({"token_id": token_id, "name": code or None})
+        history = self.coordinator.history.get(self._lock_id, [])
         return {
             "date": data.get("day_date"),
             "pins": pins,
             "fingerprints": fingerprints,
+            "recent_unlocks": history[-25:],
         }

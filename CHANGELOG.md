@@ -1,3 +1,7 @@
+## v0.8.0
+- Unlock history & self-cleaning one-time codes. A new `januslock.sync_history` action reads the lock's unlock log over BLE and uploads it to the Janus cloud, exactly like the app does. The cloud then reconciles access — so **used one-time codes get cleaned up automatically** and the counts stay correct. The lock's on-board log is cleared after a successful upload, and the recent unlocks appear as a `recent_unlocks` attribute on the Day code sensor. Tip: run `sync_history` once a day with an automation.
+- Requires the ESPHome device's "Allow the device to perform Home Assistant actions" option to be enabled (so the lock can hand its history to Home Assistant).
+
 ## v0.7.1
 - Removing a PIN is now reliable: if the code is taken off the lock but the Janus cloud removal fails, the action retries and then reports an error instead of silently leaving the code in the cloud (which previously let the lock and cloud drift out of sync). It also returns whether the lock and cloud parts each succeeded.
 - The "Day code" sensor now lists the lock's access more clearly: a **pins** list (with each code's type — permanent / one-time — and any time, date or weekday limits) and a separate **fingerprints** list, instead of one mixed "passcodes" attribute.

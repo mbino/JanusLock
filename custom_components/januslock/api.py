@@ -120,3 +120,21 @@ class JanusApi:
         return await self._post(
             "/api/v1/token/confirm-passcode-synced", data={"lockId": lock_id, "tokenId": token_id}
         )
+
+    async def upload_history(
+        self, lock_id: str, histories: list, id_start: int, id_end: int
+    ) -> Any:
+        """Upload unlock-history entries read from the lock. The server reconciles tokens
+        (decrements/removes used one-time codes) from this."""
+        return await self._post(
+            f"/api/v1/lock/{lock_id}/unlock-history",
+            json={
+                "histories": histories,
+                "unlockHistoryIdStart": id_start,
+                "unlockHistoryIdEnd": id_end,
+            },
+        )
+
+    async def download_history(self, lock_id: str) -> Any:
+        """The unlock history already stored server-side (for display)."""
+        return await self._get(f"/api/v1/lock/{lock_id}/unlock-history")

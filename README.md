@@ -54,7 +54,10 @@ Two parts work together:
   the lock over BLE (via the ESPHome device), and `januslock.remove_pin` removes one. A PIN can be
   **permanent** or **one-time**, and optionally limited to certain **weekdays**, a daily **time
   window** (`time_from`/`time_to`), and/or a **date range** (`date_from`/`date_to`) — matching all
-  the options in the vendor app.
+  the options in the vendor app. `januslock.sync_history` reads the lock's unlock log over BLE and
+  uploads it to the cloud (so **used one-time codes are cleaned up automatically**); recent unlocks
+  show up as a `recent_unlocks` attribute on the Day code sensor. Enable "Allow the device to perform
+  Home Assistant actions" on the ESPHome device so the lock can hand its history to Home Assistant.
 
 Install the integration via HACS → *Custom repositories* → add `https://github.com/mbino/JanusLock`
 as an **Integration**, install "Janus Lock", restart, then add it from *Settings → Devices &

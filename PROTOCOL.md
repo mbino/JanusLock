@@ -263,6 +263,43 @@ Edit: `POST /api/v1/token/edit` (`EditAccessRightRequest`: same schedule fields 
 Fingerprint enrol: `token/add` with `fingerprintId`, then BLE `addFingerprint` (`1101`) +
 `updateFingerprint1/2` (`1201`/`1202`) — enrolment is lock-driven (user touches sensor).
 
+## 6c. Unlock history & one-time-code cleanup (verified)
+
+The lock records every unlock in an on-board log with a rolling id range (reported in the handshake
+status: `histStart`/`histEnd` at bytes [16..17]/[18..19]). One-time codes are enforced **by the lock**
+(the `count` byte decrements; a used one-time code stops opening), but the **cloud** only learns of
+usage — and thus removes/decrements used one-time tokens — when the history is uploaded to it. The
+official app does this on every connection; an ESP32 bridge must do the same to keep cloud and lock
+in sync.
+
+**Read the history (BLE):**
+1. `getUnlockHistory1` (`0501`) → reply `0501 <status> <count:2 LE @ [3]>`. `status@[2]==0`; `count` =
+   number of entries waiting. If 0, done.
+2. `getUnlockHistory2` (`0502`), repeated — each reply is **one entry** (or `status@[2]!=0` = no more):
+   | idx | field |
+   |---|---|
+   | [2] | status (0 = an entry follows) |
+   | [3..4] | **tokenId**, LE (which credential unlocked) |
+   | [5] | result / type |
+   | [6..12] | timestamp bytes → `"%02d%02d-%02d-%02d %02d:%02d:%02d"` = `YYYY-MM-DD HH:MM:SS` |
+   | [13] | weekday (value **+1**) |
+   | [14..15] | tokenVersion, LE |
+   | [16..17] | **historyId**, LE |
+
+   Keep sending `0502` until `status!=0`. (The app batches 10, then does step 3, uploads, repeats.)
+3. `getUnlockHistory3` (`0503`) → end marker.
+4. `flushUnlockHistoryUntil` (`0b01` + `id:2 LE`) → clears the lock's log up to `id`. Only flush
+   **after** the entries are safely uploaded to the cloud.
+
+**Upload to the cloud:** `POST /api/v1/lock/{lockId}/unlock-history`
+```json
+{ "histories": [ { "historyId": N, "date": "YYYY-MM-DD HH:MM:SS", "result": R,
+                   "tokenId": T, "tokenVersion": V } ],
+  "unlockHistoryIdStart": S, "unlockHistoryIdEnd": E }
+```
+The server reconciles access rights from this (decrements `remainingUnlockCount`, drops used one-time
+tokens). The already-uploaded log can be read back with `GET /api/v1/lock/{lockId}/unlock-history`.
+
 ## 7. Backend (for reference)
 
 - `SERVER_URL = https://api.janus-lock.com/`

@@ -1,3 +1,6 @@
+## v0.9.1
+- Made the custom card load more reliably: it no longer errors if its script is loaded twice, and the integration now cache-busts the card URL with its version so an updated card isn't served stale from the browser cache. (Fixes an occasional "Configuration error" in place of the card until a hard refresh.)
+
 ## v0.9.0
 - Added a **custom Lovelace card** for managing the lock from a normal dashboard — no more Developer Tools. It has a form to add a code (with the one-time / time-window / date-range / weekday options), a list of existing PIN codes each with a Remove button, the enrolled fingerprints, and the recent unlocks with a "Sync now" button. The integration serves and auto-loads the card itself, so just add a card of type `custom:janus-lock-card` to a dashboard (the entity is auto-detected).
 

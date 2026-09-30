@@ -191,11 +191,13 @@ class JanusLockCard extends HTMLElement {
   }
 }
 
-customElements.define("janus-lock-card", JanusLockCard);
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "janus-lock-card",
-  name: "Janus Lock Card",
-  description: "Manage Janus lock PIN codes, fingerprints and unlock history.",
-});
-console.info("%c JANUS-LOCK-CARD %c loaded ", "color:#fff;background:#3949ab", "");
+if (!customElements.get("janus-lock-card")) {
+  customElements.define("janus-lock-card", JanusLockCard);
+  window.customCards = window.customCards || [];
+  window.customCards.push({
+    type: "janus-lock-card",
+    name: "Janus Lock Card",
+    description: "Manage Janus lock PIN codes, fingerprints and unlock history.",
+  });
+  console.info("%c JANUS-LOCK-CARD %c loaded ", "color:#fff;background:#3949ab", "");
+}

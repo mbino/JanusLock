@@ -117,14 +117,21 @@ async def _register_frontend(hass: HomeAssistant) -> None:
     hass.data[f"{DOMAIN}_frontend"] = True
     from homeassistant.components.frontend import add_extra_js_url
     from homeassistant.components.http import StaticPathConfig
+    from homeassistant.loader import async_get_integration
 
-    url = "/januslock_static/janus-lock-card.js"
+    base = "/januslock_static/janus-lock-card.js"
     path = str(Path(__file__).parent / "www" / "janus-lock-card.js")
     try:
+        integration = await async_get_integration(hass, DOMAIN)
+        version = str(integration.version or "0")
+    except Exception:  # noqa: BLE001
+        version = "0"
+    try:
         await hass.http.async_register_static_paths(
-            [StaticPathConfig(url, path, False)]
+            [StaticPathConfig(base, path, False)]
         )
-        add_extra_js_url(hass, url)
+        # cache-bust with the integration version so updates aren't served stale
+        add_extra_js_url(hass, f"{base}?v={version}")
     except Exception as err:  # noqa: BLE001
         _LOGGER.warning("could not register the Janus Lock card: %s", err)
 

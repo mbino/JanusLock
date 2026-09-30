@@ -1,3 +1,6 @@
+## v0.9.2
+- Fixed the card showing "Custom element doesn't exist" (a configuration error) in Firefox: the integration now registers the card as a proper Lovelace **resource** instead of injecting an app-shell script, so the frontend loads it reliably before rendering cards in every browser. It de-duplicates and version-updates the resource automatically.
+
 ## v0.9.1
 - Made the custom card load more reliably: it no longer errors if its script is loaded twice, and the integration now cache-busts the card URL with its version so an updated card isn't served stale from the browser cache. (Fixes an occasional "Configuration error" in place of the card until a hard refresh.)
 

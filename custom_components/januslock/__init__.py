@@ -111,11 +111,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _register_frontend(hass: HomeAssistant) -> None:
-    """Serve and auto-load the custom Lovelace card (available as `custom:janus-lock-card`)."""
+    """Serve the custom Lovelace card and register it as a Lovelace **resource**.
+
+    Registering a resource (rather than add_extra_js_url) is how HA's frontend reliably loads
+    a custom card before rendering cards, in every browser (Firefox included; add_extra_js_url
+    head scripts race and Firefox often reports "Custom element doesn't exist"). The card itself
+    is available as `custom:janus-lock-card`.
+    """
     if hass.data.get(f"{DOMAIN}_frontend"):
         return
     hass.data[f"{DOMAIN}_frontend"] = True
-    from homeassistant.components.frontend import add_extra_js_url
     from homeassistant.components.http import StaticPathConfig
     from homeassistant.loader import async_get_integration
 
@@ -127,13 +132,36 @@ async def _register_frontend(hass: HomeAssistant) -> None:
     except Exception:  # noqa: BLE001
         version = "0"
     try:
-        await hass.http.async_register_static_paths(
-            [StaticPathConfig(base, path, False)]
-        )
-        # cache-bust with the integration version so updates aren't served stale
-        add_extra_js_url(hass, f"{base}?v={version}")
+        await hass.http.async_register_static_paths([StaticPathConfig(base, path, False)])
     except Exception as err:  # noqa: BLE001
-        _LOGGER.warning("could not register the Janus Lock card: %s", err)
+        _LOGGER.warning("Janus Lock card: could not serve static file: %s", err)
+        return
+
+    url = f"{base}?v={version}"
+    try:
+        lovelace = hass.data.get("lovelace")
+        resources = getattr(lovelace, "resources", None)
+        if resources is None or not hasattr(resources, "async_create_item"):
+            _LOGGER.warning(
+                "Janus Lock: could not auto-register the card resource; add it manually "
+                "under Settings > Dashboards > Resources as a JavaScript module: %s",
+                base,
+            )
+            return
+        if not resources.loaded:
+            await resources.async_load()
+            resources.loaded = True
+        mine = [r for r in resources.async_items() if str(r.get("url", "")).startswith(base)]
+        if mine:
+            # de-duplicate and keep the URL on the current version
+            for extra in mine[1:]:
+                await resources.async_delete_item(extra["id"])
+            if mine[0].get("url") != url:
+                await resources.async_update_item(mine[0]["id"], {"res_type": "module", "url": url})
+        else:
+            await resources.async_create_item({"res_type": "module", "url": url})
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.warning("Janus Lock card: resource registration failed: %s", err)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
